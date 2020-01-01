@@ -47,7 +47,21 @@ fs.stat(options.dir, err => {
     });
 
     doc.pipe(fs.createWriteStream(outputFile));
-    const result = list.sort((a, b) => a.padding - b.padding);
+    const result = list.sort((fa, fb) => {
+      const a = fa.origin;
+      const b = fb.origin;
+      const a1 = parseInt(a.replace(/^\d*$/g, ""), 10);
+      const b1 = parseInt(b.replace(/^\d*$/g, ""), 10);
+      const a2 = a1 !== a1 ? 0 : a1;
+      const b2 = b1 !== b1 ? 0 : b1;
+
+      if (a2 > b2) {
+        return 1;
+      } else if (a2 < b2) {
+        return -1;
+      }
+      return 0;
+    });
     result
       .map(fileObject => {
         return options.dir.endsWith("/")
