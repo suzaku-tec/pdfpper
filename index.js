@@ -40,6 +40,10 @@ fs.stat(options.dir, err => {
         };
       });
 
+    if (list.length <= 0) {
+      return;
+    }
+
     const outputFile = selectOutputFile(options.output, options.dir);
 
     const doc = new PDFDocument({
