@@ -1,4 +1,5 @@
 const commandLineArgs = require("command-line-args");
+const commandLineUsage = require('command-line-usage');
 const PDFDocument = require("pdfkit");
 const fs = require("fs");
 const imageSize = require("image-size");
@@ -8,28 +9,63 @@ const optionDef = [
   {
     name: "dir",
     alias: "d",
-    type: String
+    type: String,
+    description: "画像格納フォルダを指定する",
   },
   {
     name: "output",
     alias: "o",
-    type: String
+    type: String,
+    description: "出力ファイルパス",
+  },
+  {
+    name: 'ext',
+    alias: 'e',
+    type: String,
+    description: '対象画像拡張子',
+    defaultValue: "jpg"
+  },
+  {
+    name: 'help',
+    alias: 'h',
+    type: Boolean,
+    description: 'show help'
+  },
+];
+
+const sections = [
+  {
+    header: 'pdfpper',
+    content: 'dir images convert pdf'
+  },
+  {
+    header: 'Options',
+    optionList: optionDef
   }
 ];
 
 const options = commandLineArgs(optionDef);
 
-fs.stat(options.dir, err => {
-  if (err) return;
+if(options.help) {
+  const usage = commandLineUsage(sections);
+  console.log(usage);
+  process.exit(0);
+}
 
+fs.stat(options.dir, err => {
+  if (err) {
+    console.log(err)
+    return
+  };
   fs.readdir(options.dir, (err, files) => {
     if (err) throw err;
 
     const list = files
       .filter(fileName => {
+        let reg = new RegExp(".*\." + options.ext + "$")
         return (
           fs.statSync(options.dir + "/" + fileName).isFile() &&
-          /.*\.jpg$/.test(fileName)
+          fileName.match(reg)
         );
       })
       .map(fileName => {
@@ -40,7 +76,7 @@ fs.stat(options.dir, err => {
         };
       });
 
-    if (list.length <= 0) {
+      if (list.length <= 0) {
       return;
     }
 
