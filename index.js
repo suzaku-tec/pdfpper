@@ -56,9 +56,9 @@ fs.stat(options.dir, err => {
   if (err) {
     console.log(err)
     return
-  };
-  fs.readdir(options.dir, (err, files) => {
-    if (err) throw err;
+  }
+  fs.readdir(options.dir, (err2, files) => {
+    if (err2) throw err2;
 
     const list = files
       .filter(fileName => {
