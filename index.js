@@ -1,7 +1,7 @@
-"use strict"
+"use strict";
 
 const commandLineArgs = require("command-line-args");
-const commandLineUsage = require('command-line-usage');
+const commandLineUsage = require("command-line-usage");
 const PDFDocument = require("pdfkit");
 const fs = require("fs");
 const imageSize = require("image-size");
@@ -21,71 +21,88 @@ const optionDef = [
     description: "出力ファイルパス",
   },
   {
-    name: 'ext',
-    alias: 'e',
+    name: "ext",
+    alias: "e",
     type: String,
-    description: '対象画像拡張子',
-    defaultValue: "jpg"
+    description: "対象画像拡張子",
+    defaultValue: "jpg",
   },
   {
-    name: 'help',
-    alias: 'h',
+    name: "help",
+    alias: "h",
     type: Boolean,
-    description: 'show help'
+    description: "show help",
   },
 ];
 
 const sections = [
   {
-    header: 'pdfpper',
-    content: 'dir images convert pdf'
+    header: "pdfpper",
+    content: "dir images convert pdf",
   },
   {
-    header: 'Options',
-    optionList: optionDef
-  }
+    header: "Options",
+    optionList: optionDef,
+  },
 ];
 
 const options = commandLineArgs(optionDef);
 
-if(options.help) {
+if (options.help) {
   const usage = commandLineUsage(sections);
   console.log(usage);
   process.exit(0);
 }
 
-if(!isExistDir(options.dir)) {
-  console.log("not directory")
+if (!isExistDir(options.dir)) {
+  console.log("not directory");
 }
 
 fs.readdir(options.dir, (err2, files) => {
   if (err2) throw err2;
 
   const list = files
-    .filter(fileName => {
-      let reg = new RegExp(".*\." + options.ext + "$")
+    .filter((fileName) => {
+      let reg = new RegExp(".*." + options.ext + "$");
       return (
         fs.statSync(options.dir + "/" + fileName).isFile() &&
         fileName.match(reg)
       );
     })
-    .map(fileName => {
+    .map((fileName) => {
       const padding = fileName.replace("." + options.ext, "");
       return {
         origin: fileName,
-        padding: Number(padding)
+        padding: Number(padding),
       };
     });
 
   if (list.length <= 0) {
-    console.log("no output")
+    console.log("no output");
     return;
   }
 
   const outputFile = selectOutputFile(options.output, options.dir);
 
+  exportPdf(outputFile, list);
+});
+
+function selectOutputFile(filePath, dir) {
+  if (!filePath) {
+    const tmp = dir.substring(0, 251);
+    return path.basename(tmp) + ".pdf";
+  }
+
+  return !filePath.endsWith(".pdf") ? filePath + ".pdf" : filePath;
+}
+
+function isExistDir(dir) {
+  return fs.statSync(dir).isDirectory();
+}
+
+function exportPdf(outputFile, list) {
   const doc = new PDFDocument({
-    autoFirstPage: false
+    autoFirstPage: false,
   });
 
   doc.pipe(fs.createWriteStream(outputFile));
@@ -104,36 +121,23 @@ fs.readdir(options.dir, (err2, files) => {
     }
     return 0;
   });
+
   result
-    .map(fileObject => {
+    .map((fileObject) => {
       return options.dir.endsWith("/")
         ? options.dir + fileObject.origin
         : options.dir + "/" + fileObject.origin;
     })
-    .forEach(filePath => {
+    .forEach((filePath) => {
       const dimensions = imageSize(filePath);
 
       doc.addPage({
-        size: [dimensions.width, dimensions.height]
+        size: [dimensions.width, dimensions.height],
       });
 
       doc.image(filePath, 0, 0, {
-        width: dimensions.width
+        width: dimensions.width,
       });
     });
   doc.end();
-});
-
-
-function selectOutputFile(filePath, dir) {
-  if (!filePath) {
-    const tmp = dir.substring(0, 251)
-    return path.basename(tmp) + ".pdf";
-  }
-
-  return !filePath.endsWith(".pdf") ? filePath + ".pdf" : filePath;
-}
-
-function isExistDir(dir) {
-  return fs.statSync(dir).isDirectory()
 }
