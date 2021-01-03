@@ -52,76 +52,76 @@ if(options.help) {
   process.exit(0);
 }
 
-fs.stat(options.dir, err => {
-  if (err) {
-    console.log(err)
-    return
+if(!isExistDir(options.dir)) {
+  console.log("not directory")
+}
+
+fs.readdir(options.dir, (err2, files) => {
+  if (err2) throw err2;
+
+  const list = files
+    .filter(fileName => {
+      let reg = new RegExp(".*\." + options.ext + "$")
+      return (
+        fs.statSync(options.dir + "/" + fileName).isFile() &&
+        fileName.match(reg)
+      );
+    })
+    .map(fileName => {
+      const padding = fileName.replace("." + options.ext, "");
+      return {
+        origin: fileName,
+        padding: Number(padding)
+      };
+    });
+
+  if (list.length <= 0) {
+    console.log("no output")
+    return;
   }
-  fs.readdir(options.dir, (err2, files) => {
-    if (err2) throw err2;
 
-    const list = files
-      .filter(fileName => {
-        let reg = new RegExp(".*\." + options.ext + "$")
-        return (
-          fs.statSync(options.dir + "/" + fileName).isFile() &&
-          fileName.match(reg)
-        );
-      })
-      .map(fileName => {
-        const padding = fileName.replace(".jpg", "");
-        return {
-          origin: fileName,
-          padding: Number(padding)
-        };
-      });
+  const outputFile = selectOutputFile(options.output, options.dir);
 
-      if (list.length <= 0) {
-      return;
-    }
-
-    const outputFile = selectOutputFile(options.output, options.dir);
-
-    const doc = new PDFDocument({
-      autoFirstPage: false
-    });
-
-    doc.pipe(fs.createWriteStream(outputFile));
-    const result = list.sort((fa, fb) => {
-      const a = fa.origin;
-      const b = fb.origin;
-      const a1 = parseInt(a.replace(/^\d*$/g, ""), 10);
-      const b1 = parseInt(b.replace(/^\d*$/g, ""), 10);
-      const a2 = a1 !== a1 ? 0 : a1;
-      const b2 = b1 !== b1 ? 0 : b1;
-
-      if (a2 > b2) {
-        return 1;
-      } else if (a2 < b2) {
-        return -1;
-      }
-      return 0;
-    });
-    result
-      .map(fileObject => {
-        return options.dir.endsWith("/")
-          ? options.dir + fileObject.origin
-          : options.dir + "/" + fileObject.origin;
-      })
-      .forEach(filePath => {
-        const dimensions = imageSize(filePath);
-
-        doc.addPage({
-          size: [dimensions.width, dimensions.height]
-        });
-
-        doc.image(filePath, 0, 0, {
-          width: dimensions.width
-        });
-      });
-    doc.end();
+  const doc = new PDFDocument({
+    autoFirstPage: false
   });
+
+  doc.pipe(fs.createWriteStream(outputFile));
+  const result = list.sort((fa, fb) => {
+    const a = fa.origin;
+    const b = fb.origin;
+    const a1 = parseInt(a.replace(/^\d*$/g, ""), 10);
+    const b1 = parseInt(b.replace(/^\d*$/g, ""), 10);
+    const a2 = a1 !== a1 ? 0 : a1;
+    const b2 = b1 !== b1 ? 0 : b1;
+
+    if (a2 > b2) {
+      return 1;
+    } else if (a2 < b2) {
+      return -1;
+    }
+    return 0;
+  });
+  result
+    .map(fileObject => {
+      return options.dir.endsWith("/")
+        ? options.dir + fileObject.origin
+        : options.dir + "/" + fileObject.origin;
+    })
+    .forEach(filePath => {
+      const dimensions = imageSize(filePath);
+
+      doc.addPage({
+        size: [dimensions.width, dimensions.height]
+      });
+
+      doc.image(filePath, 0, 0, {
+        width: dimensions.width
+      });
+    });
+  doc.end();
 });
+
 
 function selectOutputFile(filePath, dir) {
   if (!filePath) {
@@ -129,4 +129,8 @@ function selectOutputFile(filePath, dir) {
   }
 
   return !filePath.endsWith(".pdf") ? filePath + ".pdf" : filePath;
+}
+
+function isExistDir(dir) {
+  return fs.statSync(dir).isDirectory()
 }
