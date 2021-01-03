@@ -61,21 +61,7 @@ if (!isExistDir(options.dir)) {
 fs.readdir(options.dir, (err2, files) => {
   if (err2) throw err2;
 
-  const list = files
-    .filter((fileName) => {
-      let reg = new RegExp(".*." + options.ext + "$");
-      return (
-        fs.statSync(options.dir + "/" + fileName).isFile() &&
-        fileName.match(reg)
-      );
-    })
-    .map((fileName) => {
-      const padding = fileName.replace("." + options.ext, "");
-      return {
-        origin: fileName,
-        padding: Number(padding),
-      };
-    });
+  const list = getExtList(options.dir, files, options.ext)
 
   if (list.length <= 0) {
     console.log("no output");
@@ -140,4 +126,21 @@ function exportPdf(outputFile, list) {
       });
     });
   doc.end();
+}
+
+function autoExtList() {}
+
+function getExtList(dir, files, ext) {
+  return files
+    .filter((fileName) => {
+      const reg = new RegExp(".*." + ext + "$");
+      return fs.statSync(dir + "/" + fileName).isFile() && fileName.match(reg);
+    })
+    .map((fileName) => {
+      const padding = fileName.replace("." + ext, "");
+      return {
+        origin: fileName,
+        padding: Number(padding),
+      };
+    });
 }
