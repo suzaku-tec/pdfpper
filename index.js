@@ -1,3 +1,5 @@
+"use strict"
+
 const commandLineArgs = require("command-line-args");
 const commandLineUsage = require('command-line-usage');
 const PDFDocument = require("pdfkit");
@@ -125,7 +127,8 @@ fs.readdir(options.dir, (err2, files) => {
 
 function selectOutputFile(filePath, dir) {
   if (!filePath) {
-    return path.basename(dir) + ".pdf";
+    const tmp = dir.substring(0, 251)
+    return path.basename(tmp) + ".pdf";
   }
 
   return !filePath.endsWith(".pdf") ? filePath + ".pdf" : filePath;
