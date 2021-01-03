@@ -24,8 +24,8 @@ const optionDef = [
     name: "ext",
     alias: "e",
     type: String,
-    description: "対象画像拡張子",
-    defaultValue: "jpg",
+    description: "対象画像拡張子。autoが指定された場合、統一されている拡張子を自動判別する。その場合、拡張子が統一されていないとエラーになる",
+    defaultValue: "auto",
   },
   {
     name: "help",
@@ -61,7 +61,7 @@ if (!isExistDir(options.dir)) {
 fs.readdir(options.dir, (err2, files) => {
   if (err2) throw err2;
 
-  const list = getExtList(options.dir, files, options.ext)
+  const list = options.ext === "auto" ? autoExtList(options.dir, files) : getExtList(options.dir, files, options.ext);
 
   if (list.length <= 0) {
     console.log("no output");
@@ -128,7 +128,19 @@ function exportPdf(outputFile, list) {
   doc.end();
 }
 
-function autoExtList() {}
+function autoExtList(dir, files) {
+  // 拡張子のリストを作る
+  const tmp_exts = files.map((file) => {
+    return file.slice(((file.lastIndexOf(".") - 1) >>> 0) + 2);
+  });
+  const exts = Array.from(new Set(tmp_exts));
+
+  if (exts && exts.length !== 1) {
+    throw "multi ext. not auto collecting";
+  }
+
+  return getExtList(dir, files, exts[0]);
+}
 
 function getExtList(dir, files, ext) {
   return files
