@@ -58,8 +58,8 @@ if (!isExistDir(options.dir)) {
   console.log("not directory");
 }
 
-fs.readdir(options.dir, (err2, files) => {
-  if (err2) throw err2;
+fs.readdir(options.dir, (err, files) => {
+  if (err) throw err;
 
   const list = options.ext === "auto" ? autoExtList(options.dir, files) : getExtList(options.dir, files, options.ext);
 
