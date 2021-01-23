@@ -99,7 +99,7 @@ function main(dir, extOption, output) {
 
     if (list.length <= 0) {
       // 出力対象なし
-      console.log("no output");
+      console.log("no output. dir:" + dir);
       return;
     }
 

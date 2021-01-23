@@ -9,7 +9,7 @@ class Ext {
     const exts = Array.from(new Set(tmp_exts));
   
     if (exts && exts.length !== 1) {
-      throw "multi ext. not auto collecting";
+      throw "multi ext." + exts + " not auto collecting. dir:" + dir;
     }
   
     return this.getExtList(dir, files, exts[0]);
