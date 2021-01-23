@@ -78,7 +78,11 @@ if (options.lists) {
   });
 
   rl.on("line", (dirStr) => {
-    main(dirStr, options.ext, options.output);
+    try {
+      main(dirStr, options.ext, options.output);
+    } catch (error) {
+      console.error(error)
+    }
   });
 } else {
   if (!isExistDir(options.dir)) {
