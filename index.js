@@ -5,12 +5,13 @@ const commandLineUsage = require("command-line-usage");
 const fs = require("fs");
 const path = require("path");
 const fsExtra = require("fs-extra");
+const readline = require('readline');
 
-const Ext = require('./ext');
-const Pdf = require("./pdf")
+const Ext = require("./ext");
+const Pdf = require("./pdf");
 
-const ext = new Ext()
-const pdf = new Pdf()
+const ext = new Ext();
+const pdf = new Pdf();
 
 const optionDef = [
   {
@@ -44,6 +45,11 @@ const optionDef = [
     type: Boolean,
     description: "delete dir after create pdf",
   },
+  {
+    name: "lists",
+    type: String,
+    description: "path text",
+  },
 ];
 
 const sections = [
@@ -65,35 +71,51 @@ if (options.help) {
   process.exit(0);
 }
 
-if (!isExistDir(options.dir)) {
-  console.log("not directory");
+if (options.lists) {
+  const rs = fs.createReadStream(options.lists);
+  const rl = readline.createInterface({
+    input: rs,
+  });
+
+  rl.on("line", (dirStr) => {
+    main(dirStr, options.ext, options.output);
+  });
+} else {
+  if (!isExistDir(options.dir)) {
+    console.log("not directory");
+  }
+
+  main(options.dir, options.ext, options.output);
 }
 
-fs.readdir(options.dir, (err, files) => {
-  if (err) throw err;
+function main(dir, extOption, output) {
+  console.log(dir)
+  fs.readdir(dir, (err, files) => {
+    if (err) throw err;
 
-  const list =
-    options.ext === "auto"
-      ? ext.autoExtList(options.dir, files)
-      : ext.getExtList(options.dir, files, options.ext);
+    const list =
+      extOption === "auto"
+        ? ext.autoExtList(dir, files)
+        : ext.getExtList(dir, files, ext);
 
-  if (list.length <= 0) {
-    // 出力対象なし
-    console.log("no output");
-    return;
-  }
+    if (list.length <= 0) {
+      // 出力対象なし
+      console.log("no output");
+      return;
+    }
 
-  const outputFile = selectOutputFile(options.output, options.dir);
+    const outputFile = selectOutputFile(output, dir);
 
-  pdf.exportPdf(options.dir, outputFile, list);
+    pdf.exportPdf(dir, outputFile, list);
 
-  if (options.del) {
-    // ディレクトリ削除
-    fsExtra.remove(options.dir, (err) => {
-      if (err) throw err;
-    });
-  }
-});
+    if (options.del) {
+      // ディレクトリ削除
+      fsExtra.remove(dir, (err) => {
+        if (err) throw err;
+      });
+    }
+  });
+}
 
 function selectOutputFile(filePath, dir) {
   if (!filePath) {
