@@ -6,6 +6,7 @@ const PDFDocument = require("pdfkit");
 const fs = require("fs");
 const imageSize = require("image-size");
 const path = require("path");
+const fsExtra = require("fs-extra");
 
 const optionDef = [
   {
@@ -24,7 +25,8 @@ const optionDef = [
     name: "ext",
     alias: "e",
     type: String,
-    description: "対象画像拡張子。autoが指定された場合、統一されている拡張子を自動判別する。その場合、拡張子が統一されていないとエラーになる",
+    description:
+      "対象画像拡張子。autoが指定された場合、統一されている拡張子を自動判別する。その場合、拡張子が統一されていないとエラーになる",
     defaultValue: "auto",
   },
   {
@@ -32,6 +34,11 @@ const optionDef = [
     alias: "h",
     type: Boolean,
     description: "show help",
+  },
+  {
+    name: "del",
+    type: Boolean,
+    description: "delete dir after create pdf",
   },
 ];
 
@@ -61,9 +68,13 @@ if (!isExistDir(options.dir)) {
 fs.readdir(options.dir, (err, files) => {
   if (err) throw err;
 
-  const list = options.ext === "auto" ? autoExtList(options.dir, files) : getExtList(options.dir, files, options.ext);
+  const list =
+    options.ext === "auto"
+      ? autoExtList(options.dir, files)
+      : getExtList(options.dir, files, options.ext);
 
   if (list.length <= 0) {
+    // 出力対象なし
     console.log("no output");
     return;
   }
@@ -71,6 +82,13 @@ fs.readdir(options.dir, (err, files) => {
   const outputFile = selectOutputFile(options.output, options.dir);
 
   exportPdf(outputFile, list);
+
+  if (options.del) {
+    // ディレクトリ削除
+    fsExtra.remove(options.dir, (err) => {
+      if (err) throw err;
+    });
+  }
 });
 
 function selectOutputFile(filePath, dir) {
