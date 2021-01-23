@@ -2,15 +2,15 @@
 
 const commandLineArgs = require("command-line-args");
 const commandLineUsage = require("command-line-usage");
-const PDFDocument = require("pdfkit");
 const fs = require("fs");
-const imageSize = require("image-size");
 const path = require("path");
 const fsExtra = require("fs-extra");
 
 const Ext = require('./ext');
+const Pdf = require("./pdf")
 
 const ext = new Ext()
+const pdf = new Pdf()
 
 const optionDef = [
   {
@@ -85,7 +85,7 @@ fs.readdir(options.dir, (err, files) => {
 
   const outputFile = selectOutputFile(options.output, options.dir);
 
-  exportPdf(outputFile, list);
+  pdf.exportPdf(options.dir, outputFile, list);
 
   if (options.del) {
     // ディレクトリ削除
@@ -106,46 +106,4 @@ function selectOutputFile(filePath, dir) {
 
 function isExistDir(dir) {
   return fs.statSync(dir).isDirectory();
-}
-
-function exportPdf(outputFile, list) {
-  const doc = new PDFDocument({
-    autoFirstPage: false,
-  });
-
-  doc.pipe(fs.createWriteStream(outputFile));
-  const result = list.sort((fa, fb) => {
-    const a = fa.origin;
-    const b = fb.origin;
-    const a1 = parseInt(a.replace(/^\d*$/g, ""), 10);
-    const b1 = parseInt(b.replace(/^\d*$/g, ""), 10);
-    const a2 = a1 !== a1 ? 0 : a1;
-    const b2 = b1 !== b1 ? 0 : b1;
-
-    if (a2 > b2) {
-      return 1;
-    } else if (a2 < b2) {
-      return -1;
-    }
-    return 0;
-  });
-
-  result
-    .map((fileObject) => {
-      return options.dir.endsWith("/")
-        ? options.dir + fileObject.origin
-        : options.dir + "/" + fileObject.origin;
-    })
-    .forEach((filePath) => {
-      const dimensions = imageSize(filePath);
-
-      doc.addPage({
-        size: [dimensions.width, dimensions.height],
-      });
-
-      doc.image(filePath, 0, 0, {
-        width: dimensions.width,
-      });
-    });
-  doc.end();
 }
