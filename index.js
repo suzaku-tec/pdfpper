@@ -89,7 +89,6 @@ if (options.lists) {
 }
 
 function main(dir, extOption, output) {
-  console.log(dir)
   fs.readdir(dir, (err, files) => {
     if (err) throw err;
 
