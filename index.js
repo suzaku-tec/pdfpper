@@ -5,7 +5,7 @@ const commandLineUsage = require("command-line-usage");
 const fs = require("fs");
 const path = require("path");
 const fsExtra = require("fs-extra");
-const readline = require('readline');
+const readline = require("readline");
 
 const Ext = require("./ext");
 const Pdf = require("./pdf");
@@ -81,7 +81,7 @@ if (options.lists) {
     try {
       main(dirStr, options.ext, options.output);
     } catch (error) {
-      console.error(error)
+      console.error(error);
     }
   });
 } else {
@@ -109,7 +109,12 @@ function main(dir, extOption, output) {
 
     const outputFile = selectOutputFile(output, dir);
 
-    pdf.exportPdf(dir, outputFile, list);
+    const changeTimestamp = () => {
+      const timestamp = fs.statSync(dir).mtime;
+      fs.utimesSync(outputFile, timestamp, timestamp);
+    };
+
+    pdf.exportPdf(dir, outputFile, list, changeTimestamp);
 
     if (options.del) {
       // ディレクトリ削除
