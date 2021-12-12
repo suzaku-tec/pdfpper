@@ -3,7 +3,7 @@ const imageSize = require("image-size");
 const fs = require("fs");
 
 class Pdf {
-  exportPdf(outputDir, outputFile, list, callbackFn) {
+  async exportPdf(outputDir, outputFile, list, callbackFn) {
     const doc = new PDFDocument({
       autoFirstPage: false,
     });
@@ -42,8 +42,14 @@ class Pdf {
           width: dimensions.width,
         });
       });
-    doc.end();
-    stream.on("finish", callbackFn);
+
+    await new Promise((resolve) => {
+      stream.once("finish", () => {
+        callbackFn(outputDir);
+        resolve();
+      });
+      doc.end();
+    });
   }
 }
 

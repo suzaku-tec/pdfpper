@@ -93,7 +93,7 @@ if (options.lists) {
 }
 
 function main(dir, extOption, output) {
-  fs.readdir(dir, (err, files) => {
+  fs.readdir(dir, async (err, files) => {
     if (err) throw err;
 
     const list =
@@ -109,12 +109,12 @@ function main(dir, extOption, output) {
 
     const outputFile = selectOutputFile(output, dir);
 
-    const changeTimestamp = () => {
-      const timestamp = fs.statSync(dir).mtime;
+    const changeTimestamp = (outputDir) => {
+      const timestamp = fs.statSync(outputDir).mtime;
       fs.utimesSync(outputFile, timestamp, timestamp);
     };
 
-    pdf.exportPdf(dir, outputFile, list, changeTimestamp);
+    await pdf.exportPdf(dir, outputFile, list, changeTimestamp);
 
     if (options.del) {
       // ディレクトリ削除
