@@ -38,6 +38,7 @@ class Pdf {
           size: [dimensions.width, dimensions.height],
         });
 
+        console.log(filePath);
         doc.image(filePath, 0, 0, {
           width: dimensions.width,
         });

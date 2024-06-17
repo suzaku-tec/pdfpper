@@ -9,6 +9,7 @@ const readline = require("readline");
 
 const Ext = require("./ext");
 const Pdf = require("./pdf");
+const sharp = require('sharp');
 
 const ext = new Ext();
 const pdf = new Pdf();
@@ -77,12 +78,22 @@ if (options.lists) {
     input: rs,
   });
 
+  var rlList = [];
   rl.on("line", (dirStr) => {
-    try {
-      main(dirStr, options.ext, options.output);
-    } catch (error) {
-      console.error(error);
-    }
+    rlList.push(dirStr);
+  });
+  rl.on("close", () => {
+
+    rlList.forEach(async (dirStr) => {
+      try {
+        await convertWebp(dirStr);
+        console.log("close main start");
+        await main(dirStr, options.ext, options.output);
+      } catch (error) {
+        console.error(error);
+      }
+    });
+
   });
 } else {
   if (!isExistDir(options.dir)) {
@@ -92,36 +103,37 @@ if (options.lists) {
   main(options.dir, options.ext, options.output);
 }
 
-function main(dir, extOption, output) {
-  fs.readdir(dir, async (err, files) => {
-    if (err) throw err;
+async function main(dir, extOption, output) {
+  await Promise.resolve().then(resolve => {
+    fs.readdir(dir, async (err, files) => {
+      if (err) throw err;
 
-    const list =
-      extOption === "auto"
+      const list = extOption === "auto"
         ? ext.autoExtList(dir, files)
         : ext.getExtList(dir, files, ext);
 
-    if (list.length <= 0) {
-      // 出力対象なし
-      console.log("no output. dir:" + dir);
-      return;
-    }
+      if (list.length <= 0) {
+        // 出力対象なし
+        console.log("no output. dir:" + dir);
+        return;
+      }
 
-    const outputFile = selectOutputFile(output, dir);
+      const outputFile = selectOutputFile(output, dir);
 
-    const changeTimestamp = (outputDir) => {
-      const timestamp = fs.statSync(outputDir).mtime;
-      fs.utimesSync(outputFile, timestamp, timestamp);
-    };
+      const changeTimestamp = (outputDir_1) => {
+        const timestamp = fs.statSync(outputDir_1).mtime;
+        fs.utimesSync(outputFile, timestamp, timestamp);
+      };
 
-    await pdf.exportPdf(dir, outputFile, list, changeTimestamp);
+      await pdf.exportPdf(dir, outputFile, list, changeTimestamp);
 
-    if (options.del) {
-      // ディレクトリ削除
-      fsExtra.remove(dir, (err) => {
-        if (err) throw err;
-      });
-    }
+      if (options.del) {
+        // ディレクトリ削除
+        fsExtra.remove(dir, (err_1) => {
+          if (err_1) throw err_1;
+        });
+      }
+    });
   });
 }
 
@@ -136,4 +148,28 @@ function selectOutputFile(filePath, dir) {
 
 function isExistDir(dir) {
   return fs.statSync(dir).isDirectory();
+}
+
+async function convertWebp(dir) {
+  console.log("convertWebp dir:" + dir);
+  return new Promise((resolve, reject) => {
+    try {
+      var promiseAll = fs.readdirSync(dir).filter(file => file.endsWith(".webp"))
+      .map(file => {
+        var outputPath = dir + "\\" + file.substring(0, file.lastIndexOf(".")) + ".jpg";
+        var inputPath = dir + "\\" + file;
+
+        // Sharpオブジェクトを生成
+        const image = sharp(inputPath);
+        return image.toFormat('jpg').toFile(outputPath).then(() => {
+          image.destroy();
+          console.log("remove file: " + inputPath);
+          fs.unlinkSync(inputPath);
+        });
+      });
+      Promise.all(promiseAll).then(() => resolve()).catch(() => reject());
+    } catch(error) {
+      reject(error);
+    }
+  });
 }
