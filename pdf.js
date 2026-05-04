@@ -1,6 +1,7 @@
 const PDFDocument = require("pdfkit");
 const imageSize = require("image-size");
 const fs = require("fs");
+const path = require("path");
 const createLogger = require("./logger");
 
 const logger = createLogger("info");
@@ -16,9 +17,10 @@ class Pdf {
    * @param {string} outputFile - 出力PDFファイルパス
    * @param {Array<{origin: string, padding: number}>} list - 画像ファイル情報の配列
    * @param {Function} callbackFn - PDF生成完了時に呼び出されるコールバック関数（ディレクトリパスを受け取る）
+   * @param {Function} [progressFn] - ページ生成進捗通知用のコールバック（current, totalを受け取る）
    * @returns {Promise<void>}
    */
-  async exportPdf(outputDir, outputFile, list, callbackFn) {
+  async exportPdf(outputDir, outputFile, list, callbackFn, progressFn) {
     const doc = new PDFDocument({
       autoFirstPage: false,
     });
@@ -40,24 +42,32 @@ class Pdf {
       return 0;
     });
 
-    result
-      .map((fileObject) => {
-        return outputDir.endsWith("/")
-          ? outputDir + fileObject.origin
-          : outputDir + "/" + fileObject.origin;
-      })
-      .forEach((filePath) => {
-        const dimensions = imageSize(filePath);
+    const filePaths = result.map((fileObject) => {
+      return outputDir.endsWith("/")
+        ? outputDir + fileObject.origin
+        : outputDir + "/" + fileObject.origin;
+    });
 
-        doc.addPage({
-          size: [dimensions.width, dimensions.height],
-        });
+    const totalPages = filePaths.length;
+    logger.debug(`Generating PDF for ${totalPages} page(s)`);
 
-        logger.debug(filePath);
-        doc.image(filePath, 0, 0, {
-          width: dimensions.width,
-        });
+    filePaths.forEach((filePath, index) => {
+      const dimensions = imageSize(filePath);
+      const pageNumber = index + 1;
+
+      if (typeof progressFn === "function") {
+        progressFn(pageNumber, totalPages);
+      }
+
+      doc.addPage({
+        size: [dimensions.width, dimensions.height],
       });
+
+      logger.debug(`Rendering page ${pageNumber}/${totalPages}: ${filePath}`);
+      doc.image(filePath, 0, 0, {
+        width: dimensions.width,
+      });
+    });
 
     await new Promise((resolve) => {
       stream.once("finish", () => {

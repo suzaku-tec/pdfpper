@@ -72,6 +72,75 @@ const sections = [
 
 const options = commandLineArgs(optionDef);
 
+let overallTotalPages = 0;
+let overallCompletedPages = 0;
+
+function renderOverallProgress(completed, total) {
+  if (!process.stdout.isTTY) {
+    return;
+  }
+
+  const width = 40;
+  const ratio = total ? completed / total : 0;
+  const filled = Math.round(ratio * width);
+  const empty = width - filled;
+  const bar = "█".repeat(filled) + "-".repeat(empty);
+  process.stdout.clearLine(0);
+  process.stdout.cursorTo(0);
+  process.stdout.write(`Overall Progress: ${completed}/${total} [${bar}]`);
+  if (completed === total) {
+    process.stdout.write("\n");
+  }
+}
+
+async function countImages(inputPath, extOption) {
+  try {
+    const stat = fs.statSync(inputPath);
+    if (stat.isFile() && inputPath.endsWith(".zip")) {
+      const zip = new AdmZip(inputPath);
+      const zipEntries = zip.getEntries().filter((entry) => {
+        if (entry.isDirectory) return false;
+        const ext = path.extname(entry.entryName).toLowerCase().slice(1);
+        return imageExtensions.includes(ext);
+      });
+
+      if (extOption === "auto") {
+        const exts = Array.from(
+          new Set(
+            zipEntries.map((entry) =>
+              path.extname(entry.entryName).toLowerCase().slice(1),
+            ),
+          ),
+        );
+        if (exts.length !== 1) {
+          return 0;
+        }
+        return zipEntries.filter(
+          (entry) =>
+            path.extname(entry.entryName).toLowerCase().slice(1) === exts[0],
+        ).length;
+      }
+
+      return zipEntries.filter(
+        (entry) =>
+          path.extname(entry.entryName).toLowerCase().slice(1) === extOption,
+      ).length;
+    }
+
+    if (stat.isDirectory()) {
+      const files = fs.readdirSync(inputPath);
+      return extOption === "auto"
+        ? ext.autoExtList(inputPath, files).length
+        : ext.getExtList(inputPath, files, extOption).length;
+    }
+
+    return 0;
+  } catch (error) {
+    logger.error(error);
+    return 0;
+  }
+}
+
 if (options.help) {
   const usage = commandLineUsage(sections);
   console.log(usage);
@@ -88,7 +157,15 @@ if (options.lists) {
   rl.on("line", (dirStr) => {
     rlList.push(dirStr);
   });
-  rl.on("close", () => {
+  rl.on("close", async () => {
+    rlList = rlList.filter((dirStr) => dirStr && dirStr.trim());
+
+    const counts = await Promise.all(
+      rlList.map(async (dirStr) => countImages(dirStr, options.ext)),
+    );
+    overallTotalPages = counts.reduce((sum, count) => sum + count, 0);
+    logger.info(`Overall total pages: ${overallTotalPages}`);
+
     rlList.forEach(async (dirStr) => {
       try {
         const result = await extractZipIfNeeded(dirStr);
@@ -96,7 +173,16 @@ if (options.lists) {
           const { dir: processedDir, zipPath } = result;
           await convertWebp(processedDir);
           logger.debug("close main start");
-          await main(processedDir, options.ext, options.output, zipPath);
+          await main(
+            processedDir,
+            options.ext,
+            options.output,
+            zipPath,
+            (pageNumber, pageTotal) => {
+              overallCompletedPages += 1;
+              renderOverallProgress(overallCompletedPages, overallTotalPages);
+            },
+          );
         }
       } catch (error) {
         logger.error(error);
@@ -113,7 +199,18 @@ if (options.lists) {
     const result = await extractZipIfNeeded(options.dir);
     if (result) {
       const { dir: processedDir, zipPath } = result;
-      await main(processedDir, options.ext, options.output, zipPath);
+      overallTotalPages = await countImages(options.dir, options.ext);
+      overallCompletedPages = 0;
+      await main(
+        processedDir,
+        options.ext,
+        options.output,
+        zipPath,
+        (pageNumber, pageTotal) => {
+          overallCompletedPages += 1;
+          renderOverallProgress(overallCompletedPages, overallTotalPages);
+        },
+      );
     }
   })();
 }
@@ -126,7 +223,7 @@ if (options.lists) {
  * @param {string|null} zipPath - 元のzipファイルパス（zipから展開した場合）
  * @returns {Promise<void>}
  */
-async function main(dir, extOption, output, zipPath) {
+async function main(dir, extOption, output, zipPath, progressFn) {
   await convertWebp(dir);
 
   await Promise.resolve().then((resolve) => {
@@ -156,7 +253,7 @@ async function main(dir, extOption, output, zipPath) {
         fs.utimesSync(outputFile, timestamp, timestamp);
       };
 
-      await pdf.exportPdf(dir, outputFile, list, changeTimestamp);
+      await pdf.exportPdf(dir, outputFile, list, changeTimestamp, progressFn);
 
       if (options.del) {
         // ディレクトリ削除
