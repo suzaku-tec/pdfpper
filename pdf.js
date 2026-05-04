@@ -2,7 +2,19 @@ const PDFDocument = require("pdfkit");
 const imageSize = require("image-size");
 const fs = require("fs");
 
+/**
+ * PDF生成クラス
+ * 画像ファイルをソートしてPDFドキュメントに追加します
+ */
 class Pdf {
+  /**
+   * 画像ファイル群をPDFに変換してファイルに出力
+   * @param {string} outputDir - 画像ファイルが格納されているディレクトリ
+   * @param {string} outputFile - 出力PDFファイルパス
+   * @param {Array<{origin: string, padding: number}>} list - 画像ファイル情報の配列
+   * @param {Function} callbackFn - PDF生成完了時に呼び出されるコールバック関数（ディレクトリパスを受け取る）
+   * @returns {Promise<void>}
+   */
   async exportPdf(outputDir, outputFile, list, callbackFn) {
     const doc = new PDFDocument({
       autoFirstPage: false,

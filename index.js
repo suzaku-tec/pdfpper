@@ -88,11 +88,12 @@ if (options.lists) {
   rl.on("close", () => {
     rlList.forEach(async (dirStr) => {
       try {
-        const processedDir = await extractZipIfNeeded(dirStr);
-        if (processedDir) {
+        const result = await extractZipIfNeeded(dirStr);
+        if (result) {
+          const { dir: processedDir, zipPath } = result;
           await convertWebp(processedDir);
           console.log("close main start");
-          await main(processedDir, options.ext, options.output);
+          await main(processedDir, options.ext, options.output, zipPath);
         }
       } catch (error) {
         console.error(error);
@@ -105,14 +106,23 @@ if (options.lists) {
   }
 
   (async () => {
-    const processedDir = await extractZipIfNeeded(options.dir);
-    if (processedDir) {
-      await main(processedDir, options.ext, options.output);
+    const result = await extractZipIfNeeded(options.dir);
+    if (result) {
+      const { dir: processedDir, zipPath } = result;
+      await main(processedDir, options.ext, options.output, zipPath);
     }
   })();
 }
 
-async function main(dir, extOption, output) {
+/**
+ * メイン処理：ディレクトリ内の画像をPDFに変換
+ * @param {string} dir - 処理対象のディレクトリパス
+ * @param {string} extOption - 対象拡張子（'auto'の場合は自動判別）
+ * @param {string} output - 出力ファイルパス
+ * @param {string|null} zipPath - 元のzipファイルパス（zipから展開した場合）
+ * @returns {Promise<void>}
+ */
+async function main(dir, extOption, output, zipPath) {
   await convertWebp(dir);
 
   await Promise.resolve().then((resolve) => {
@@ -133,7 +143,12 @@ async function main(dir, extOption, output) {
       const outputFile = selectOutputFile(output, dir);
 
       const changeTimestamp = (outputDir_1) => {
-        const timestamp = fs.statSync(outputDir_1).mtime;
+        let timestamp;
+        if (zipPath && fs.existsSync(zipPath)) {
+          timestamp = fs.statSync(zipPath).mtime;
+        } else {
+          timestamp = fs.statSync(outputDir_1).mtime;
+        }
         fs.utimesSync(outputFile, timestamp, timestamp);
       };
 
@@ -143,12 +158,23 @@ async function main(dir, extOption, output) {
         // ディレクトリ削除
         fsExtra.remove(dir, (err_1) => {
           if (err_1) throw err_1;
+          // zipファイルも削除
+          if (zipPath && fs.existsSync(zipPath)) {
+            fs.unlinkSync(zipPath);
+            console.log("Deleted zip file: " + zipPath);
+          }
         });
       }
     });
   });
 }
 
+/**
+ * 出力ファイルパスを決定
+ * @param {string|undefined} filePath - 指定された出力ファイルパス
+ * @param {string} dir - ディレクトリパス
+ * @returns {string} 出力ファイルパス（.pdf拡張子付き）
+ */
 function selectOutputFile(filePath, dir) {
   if (!filePath) {
     const tmp = dir.substring(0, 251);
@@ -158,6 +184,11 @@ function selectOutputFile(filePath, dir) {
   return !filePath.endsWith(".pdf") ? filePath + ".pdf" : filePath;
 }
 
+/**
+ * 入力が有効なディレクトリまたはzipファイルかを検証
+ * @param {string} input - 検証対象のパス
+ * @returns {boolean} 有効な場合はtrue、そうでない場合はfalse
+ */
 function isValidInput(input) {
   try {
     const stat = fs.statSync(input);
@@ -167,6 +198,11 @@ function isValidInput(input) {
   }
 }
 
+/**
+ * ディレクトリ内のwebpファイルをjpgに変換
+ * @param {string} dir - 処理対象のディレクトリパス
+ * @returns {Promise<void>}
+ */
 async function convertWebp(dir) {
   console.log("convertWebp dir:" + dir);
   return new Promise((resolve, reject) => {
@@ -199,9 +235,14 @@ async function convertWebp(dir) {
   });
 }
 
+/**
+ * zipファイルが指定された場合は展開する（画像ファイルが含まれている場合のみ）
+ * @param {string} dir - ディレクトリパスまたはzipファイルパス
+ * @returns {Promise<{dir: string, zipPath: string|null}|null>} 展開ディレクトリとzipパス、または画像がない場合はnull
+ */
 async function extractZipIfNeeded(dir) {
   if (!dir.endsWith(".zip")) {
-    return dir;
+    return { dir: dir, zipPath: null };
   }
 
   const zip = new AdmZip(dir);
@@ -223,5 +264,5 @@ async function extractZipIfNeeded(dir) {
   const extractDir = path.join(path.dirname(dir), path.basename(dir, ".zip"));
   zip.extractAllTo(extractDir, true);
   console.log("Extracted zip to:", extractDir);
-  return extractDir;
+  return { dir: extractDir, zipPath: dir };
 }
