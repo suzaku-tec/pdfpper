@@ -6,13 +6,16 @@ const fs = require("fs");
 const path = require("path");
 const fsExtra = require("fs-extra");
 const readline = require("readline");
+const AdmZip = require("adm-zip");
 
 const Ext = require("./ext");
 const Pdf = require("./pdf");
-const sharp = require('sharp');
+const sharp = require("sharp");
 
 const ext = new Ext();
 const pdf = new Pdf();
+
+const imageExtensions = ["jpg", "jpeg", "png", "gif", "webp", "tiff", "bmp"];
 
 const optionDef = [
   {
@@ -83,34 +86,43 @@ if (options.lists) {
     rlList.push(dirStr);
   });
   rl.on("close", () => {
-
     rlList.forEach(async (dirStr) => {
       try {
-        await convertWebp(dirStr);
-        console.log("close main start");
-        await main(dirStr, options.ext, options.output);
+        const processedDir = await extractZipIfNeeded(dirStr);
+        if (processedDir) {
+          await convertWebp(processedDir);
+          console.log("close main start");
+          await main(processedDir, options.ext, options.output);
+        }
       } catch (error) {
         console.error(error);
       }
     });
-
   });
 } else {
-  if (!isExistDir(options.dir)) {
-    console.log("not directory");
+  if (!isValidInput(options.dir)) {
+    console.log("not directory or zip file");
   }
 
-  main(options.dir, options.ext, options.output);
+  (async () => {
+    const processedDir = await extractZipIfNeeded(options.dir);
+    if (processedDir) {
+      await main(processedDir, options.ext, options.output);
+    }
+  })();
 }
 
 async function main(dir, extOption, output) {
-  await Promise.resolve().then(resolve => {
+  await convertWebp(dir);
+
+  await Promise.resolve().then((resolve) => {
     fs.readdir(dir, async (err, files) => {
       if (err) throw err;
 
-      const list = extOption === "auto"
-        ? ext.autoExtList(dir, files)
-        : ext.getExtList(dir, files, ext);
+      const list =
+        extOption === "auto"
+          ? ext.autoExtList(dir, files)
+          : ext.getExtList(dir, files, ext);
 
       if (list.length <= 0) {
         // 出力対象なし
@@ -146,30 +158,70 @@ function selectOutputFile(filePath, dir) {
   return !filePath.endsWith(".pdf") ? filePath + ".pdf" : filePath;
 }
 
-function isExistDir(dir) {
-  return fs.statSync(dir).isDirectory();
+function isValidInput(input) {
+  try {
+    const stat = fs.statSync(input);
+    return stat.isDirectory() || (stat.isFile() && input.endsWith(".zip"));
+  } catch {
+    return false;
+  }
 }
 
 async function convertWebp(dir) {
   console.log("convertWebp dir:" + dir);
   return new Promise((resolve, reject) => {
     try {
-      var promiseAll = fs.readdirSync(dir).filter(file => file.endsWith(".webp"))
-      .map(file => {
-        var outputPath = dir + "\\" + file.substring(0, file.lastIndexOf(".")) + ".jpg";
-        var inputPath = dir + "\\" + file;
+      var promiseAll = fs
+        .readdirSync(dir)
+        .filter((file) => file.endsWith(".webp"))
+        .map((file) => {
+          var outputPath =
+            dir + "\\" + file.substring(0, file.lastIndexOf(".")) + ".jpg";
+          var inputPath = dir + "\\" + file;
 
-        // Sharpオブジェクトを生成
-        const image = sharp(inputPath);
-        return image.toFormat('jpg').toFile(outputPath).then(() => {
-          image.destroy();
-          console.log("remove file: " + inputPath);
-          fs.unlinkSync(inputPath);
+          // Sharpオブジェクトを生成
+          const image = sharp(inputPath);
+          return image
+            .toFormat("jpg")
+            .toFile(outputPath)
+            .then(() => {
+              image.destroy();
+              console.log("remove file: " + inputPath);
+              fs.unlinkSync(inputPath);
+            });
         });
-      });
-      Promise.all(promiseAll).then(() => resolve()).catch(() => reject());
-    } catch(error) {
+      Promise.all(promiseAll)
+        .then(() => resolve())
+        .catch(() => reject());
+    } catch (error) {
       reject(error);
     }
   });
+}
+
+async function extractZipIfNeeded(dir) {
+  if (!dir.endsWith(".zip")) {
+    return dir;
+  }
+
+  const zip = new AdmZip(dir);
+  const zipEntries = zip.getEntries();
+
+  // 画像ファイルがあるかチェック
+  const hasImages = zipEntries.some((entry) => {
+    if (entry.isDirectory) return false;
+    const ext = path.extname(entry.entryName).toLowerCase().slice(1);
+    return imageExtensions.includes(ext);
+  });
+
+  if (!hasImages) {
+    console.log("No image files in zip, skipping extraction.");
+    return null;
+  }
+
+  // 展開ディレクトリを作成
+  const extractDir = path.join(path.dirname(dir), path.basename(dir, ".zip"));
+  zip.extractAllTo(extractDir, true);
+  console.log("Extracted zip to:", extractDir);
+  return extractDir;
 }

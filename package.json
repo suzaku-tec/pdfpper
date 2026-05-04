@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "adm-zip": "^0.5.17",
     "command-line-args": "^5.2.1",
     "command-line-usage": "^6.1.1",
     "fs-extra": "^10.0.0",
