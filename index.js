@@ -11,6 +11,9 @@ const AdmZip = require("adm-zip");
 const Ext = require("./ext");
 const Pdf = require("./pdf");
 const sharp = require("sharp");
+const createLogger = require("./logger");
+
+const logger = createLogger("info");
 
 const ext = new Ext();
 const pdf = new Pdf();
@@ -92,17 +95,18 @@ if (options.lists) {
         if (result) {
           const { dir: processedDir, zipPath } = result;
           await convertWebp(processedDir);
-          console.log("close main start");
+          logger.debug("close main start");
           await main(processedDir, options.ext, options.output, zipPath);
         }
       } catch (error) {
-        console.error(error);
+        logger.error(error);
       }
     });
   });
 } else {
-  if (!isValidInput(options.dir)) {
-    console.log("not directory or zip file");
+  if (!options.dir || !isValidInput(options.dir)) {
+    logger.warn("not directory or zip file");
+    process.exit(1);
   }
 
   (async () => {
@@ -136,7 +140,7 @@ async function main(dir, extOption, output, zipPath) {
 
       if (list.length <= 0) {
         // 出力対象なし
-        console.log("no output. dir:" + dir);
+        logger.warn("no output. dir:" + dir);
         return;
       }
 
@@ -157,11 +161,11 @@ async function main(dir, extOption, output, zipPath) {
       if (options.del) {
         // ディレクトリ削除
         fsExtra.remove(dir, (err_1) => {
-          if (err_1) throw err_1;
+          if (err_1) logger.error(err_1);
           // zipファイルも削除
           if (zipPath && fs.existsSync(zipPath)) {
             fs.unlinkSync(zipPath);
-            console.log("Deleted zip file: " + zipPath);
+            logger.info("Deleted zip file: " + zipPath);
           }
         });
       }
@@ -204,7 +208,7 @@ function isValidInput(input) {
  * @returns {Promise<void>}
  */
 async function convertWebp(dir) {
-  console.log("convertWebp dir:" + dir);
+  logger.debug("convertWebp dir:" + dir);
   return new Promise((resolve, reject) => {
     try {
       var promiseAll = fs
@@ -222,7 +226,7 @@ async function convertWebp(dir) {
             .toFile(outputPath)
             .then(() => {
               image.destroy();
-              console.log("remove file: " + inputPath);
+              logger.debug("remove file: " + inputPath);
               fs.unlinkSync(inputPath);
             });
         });
@@ -256,13 +260,13 @@ async function extractZipIfNeeded(dir) {
   });
 
   if (!hasImages) {
-    console.log("No image files in zip, skipping extraction.");
+    logger.info("No image files in zip, skipping extraction.");
     return null;
   }
 
   // 展開ディレクトリを作成
   const extractDir = path.join(path.dirname(dir), path.basename(dir, ".zip"));
   zip.extractAllTo(extractDir, true);
-  console.log("Extracted zip to:", extractDir);
+  logger.info("Extracted zip to:", extractDir);
   return { dir: extractDir, zipPath: dir };
 }

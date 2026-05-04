@@ -1,6 +1,9 @@
 const PDFDocument = require("pdfkit");
 const imageSize = require("image-size");
 const fs = require("fs");
+const createLogger = require("./logger");
+
+const logger = createLogger("info");
 
 /**
  * PDF生成クラス
@@ -50,7 +53,7 @@ class Pdf {
           size: [dimensions.width, dimensions.height],
         });
 
-        console.log(filePath);
+        logger.debug(filePath);
         doc.image(filePath, 0, 0, {
           width: dimensions.width,
         });
