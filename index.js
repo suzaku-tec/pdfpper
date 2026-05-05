@@ -253,7 +253,31 @@ async function main(dir, extOption, output, zipPath, progressFn) {
         fs.utimesSync(outputFile, timestamp, timestamp);
       };
 
-      await pdf.exportPdf(dir, outputFile, list, changeTimestamp, progressFn);
+      const { failedFiles } = await pdf.exportPdf(
+        dir,
+        outputFile,
+        list,
+        changeTimestamp,
+        progressFn,
+      );
+
+      // 失敗したファイルがあれば、失敗ログを出力
+      if (failedFiles && failedFiles.length > 0) {
+        logger.warn(`${failedFiles.length} file(s) failed to process`);
+        failedFiles.forEach((failedFile) => {
+          logger.warn(`  - ${failedFile.file}: ${failedFile.error}`);
+        });
+
+        // 失敗リストを別ファイルに保存
+        const failureListPath = outputFile.replace(".pdf", "_failures.txt");
+        const failureContent = failedFiles
+          .map((f) => `${f.file}: ${f.error}`)
+          .join("\n");
+        fs.writeFileSync(failureListPath, failureContent, "utf8");
+        logger.info(`Failure list saved to: ${failureListPath}`);
+      } else {
+        logger.info("All files processed successfully");
+      }
 
       if (options.del) {
         // ディレクトリ削除

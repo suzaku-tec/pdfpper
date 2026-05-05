@@ -18,7 +18,7 @@ class Pdf {
    * @param {Array<{origin: string, padding: number}>} list - 画像ファイル情報の配列
    * @param {Function} callbackFn - PDF生成完了時に呼び出されるコールバック関数（ディレクトリパスを受け取る）
    * @param {Function} [progressFn] - ページ生成進捗通知用のコールバック（current, totalを受け取る）
-   * @returns {Promise<void>}
+   * @returns {Promise<{failedFiles: Array<{file: string, error: string}>}>} 失敗したファイルのリスト
    */
   async exportPdf(outputDir, outputFile, list, callbackFn, progressFn) {
     const doc = new PDFDocument({
@@ -26,6 +26,7 @@ class Pdf {
     });
 
     const stream = doc.pipe(fs.createWriteStream(outputFile));
+    const failedFiles = [];
     const result = list.sort((fa, fb) => {
       const a = fa.origin;
       const b = fb.origin;
@@ -52,27 +53,53 @@ class Pdf {
     logger.debug(`Generating PDF for ${totalPages} page(s)`);
 
     filePaths.forEach((filePath, index) => {
-      const dimensions = imageSize(filePath);
       const pageNumber = index + 1;
 
-      if (typeof progressFn === "function") {
-        progressFn(pageNumber, totalPages);
+      try {
+        // ファイルの存在確認
+        if (!fs.existsSync(filePath)) {
+          throw new Error(`File not found`);
+        }
+
+        const dimensions = imageSize(filePath);
+
+        // 画像サイズが有効か確認
+        if (!dimensions || !dimensions.width || !dimensions.height) {
+          throw new Error(`Invalid image dimensions`);
+        }
+
+        if (typeof progressFn === "function") {
+          progressFn(pageNumber, totalPages);
+        }
+
+        doc.addPage({
+          size: [dimensions.width, dimensions.height],
+        });
+
+        logger.debug(`Rendering page ${pageNumber}/${totalPages}: ${filePath}`);
+        doc.image(filePath, 0, 0, {
+          width: dimensions.width,
+        });
+      } catch (error) {
+        const errorMessage = error.message || error.toString();
+        failedFiles.push({
+          file: filePath,
+          error: errorMessage,
+        });
+        logger.warn(
+          `Failed to process page ${pageNumber}/${totalPages}: ${filePath} - ${errorMessage}`,
+        );
+
+        if (typeof progressFn === "function") {
+          progressFn(pageNumber, totalPages);
+        }
       }
-
-      doc.addPage({
-        size: [dimensions.width, dimensions.height],
-      });
-
-      logger.debug(`Rendering page ${pageNumber}/${totalPages}: ${filePath}`);
-      doc.image(filePath, 0, 0, {
-        width: dimensions.width,
-      });
     });
 
-    await new Promise((resolve) => {
+    return await new Promise((resolve) => {
       stream.once("finish", () => {
         callbackFn(outputDir);
-        resolve();
+        resolve({ failedFiles });
       });
       doc.end();
     });
