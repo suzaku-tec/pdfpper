@@ -1,0 +1,1 @@
+find . -type d -exec mogrify -format jpg -quality 87 *.webp {} \;
