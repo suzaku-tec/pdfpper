@@ -75,6 +75,14 @@ const options = commandLineArgs(optionDef);
 let overallTotalPages = 0;
 let overallCompletedPages = 0;
 
+function logError(error) {
+  if (error instanceof Error) {
+    logger.error(error.stack || error.message);
+  } else {
+    logger.error(error);
+  }
+}
+
 function renderOverallProgress(completed, total) {
   if (!process.stdout.isTTY) {
     return;
@@ -136,7 +144,7 @@ async function countImages(inputPath, extOption) {
 
     return 0;
   } catch (error) {
-    logger.error(error);
+    logError(error);
     return 0;
   }
 }
@@ -185,7 +193,7 @@ if (options.lists) {
           );
         }
       } catch (error) {
-        logger.error(error);
+        logError(error);
       }
     });
   });
@@ -226,72 +234,72 @@ if (options.lists) {
 async function main(dir, extOption, output, zipPath, progressFn) {
   await convertWebp(dir);
 
-  await Promise.resolve().then((resolve) => {
-    fs.readdir(dir, async (err, files) => {
-      if (err) throw err;
+  try {
+    const files = await fs.promises.readdir(dir);
+    const list =
+      extOption === "auto"
+        ? ext.autoExtList(dir, files)
+        : ext.getExtList(dir, files, ext);
 
-      const list =
-        extOption === "auto"
-          ? ext.autoExtList(dir, files)
-          : ext.getExtList(dir, files, ext);
+    if (list.length <= 0) {
+      // 出力対象なし
+      logger.warn("no output. dir:" + dir);
+      return;
+    }
 
-      if (list.length <= 0) {
-        // 出力対象なし
-        logger.warn("no output. dir:" + dir);
-        return;
-      }
+    const outputFile = selectOutputFile(output, dir);
 
-      const outputFile = selectOutputFile(output, dir);
-
-      const changeTimestamp = (outputDir_1) => {
-        let timestamp;
-        if (zipPath && fs.existsSync(zipPath)) {
-          timestamp = fs.statSync(zipPath).mtime;
-        } else {
-          timestamp = fs.statSync(outputDir_1).mtime;
-        }
-        fs.utimesSync(outputFile, timestamp, timestamp);
-      };
-
-      const { failedFiles } = await pdf.exportPdf(
-        dir,
-        outputFile,
-        list,
-        changeTimestamp,
-        progressFn,
-      );
-
-      // 失敗したファイルがあれば、失敗ログを出力
-      if (failedFiles && failedFiles.length > 0) {
-        logger.warn(`${failedFiles.length} file(s) failed to process`);
-        failedFiles.forEach((failedFile) => {
-          logger.warn(`  - ${failedFile.file}: ${failedFile.error}`);
-        });
-
-        // 失敗リストを別ファイルに保存
-        const failureListPath = outputFile.replace(".pdf", "_failures.txt");
-        const failureContent = failedFiles
-          .map((f) => `${f.file}: ${f.error}`)
-          .join("\n");
-        fs.writeFileSync(failureListPath, failureContent, "utf8");
-        logger.info(`Failure list saved to: ${failureListPath}`);
+    const changeTimestamp = (outputDir_1) => {
+      let timestamp;
+      if (zipPath && fs.existsSync(zipPath)) {
+        timestamp = fs.statSync(zipPath).mtime;
       } else {
-        logger.info("All files processed successfully");
+        timestamp = fs.statSync(outputDir_1).mtime;
       }
+      fs.utimesSync(outputFile, timestamp, timestamp);
+    };
 
-      if (options.del) {
-        // ディレクトリ削除
-        fsExtra.remove(dir, (err_1) => {
-          if (err_1) logger.error(err_1);
-          // zipファイルも削除
-          if (zipPath && fs.existsSync(zipPath)) {
-            fs.unlinkSync(zipPath);
-            logger.info("Deleted zip file: " + zipPath);
-          }
-        });
-      }
-    });
-  });
+    const { failedFiles } = await pdf.exportPdf(
+      dir,
+      outputFile,
+      list,
+      changeTimestamp,
+      progressFn,
+    );
+
+    // 失敗したファイルがあれば、失敗ログを出力
+    if (failedFiles && failedFiles.length > 0) {
+      logger.warn(`${failedFiles.length} file(s) failed to process`);
+      failedFiles.forEach((failedFile) => {
+        logger.warn(`  - ${failedFile.file}: ${failedFile.error}`);
+      });
+
+      // 失敗リストを別ファイルに保存
+      const failureListPath = outputFile.replace(".pdf", "_failures.txt");
+      const failureContent = failedFiles
+        .map((f) => `${f.file}: ${f.error}`)
+        .join("\n");
+      fs.writeFileSync(failureListPath, failureContent, "utf8");
+      logger.info(`Failure list saved to: ${failureListPath}`);
+    } else {
+      logger.info("All files processed successfully");
+    }
+
+    if (options.del) {
+      // ディレクトリ削除
+      fsExtra.remove(dir, (err_1) => {
+        if (err_1) logError(err_1);
+        // zipファイルも削除
+        if (zipPath && fs.existsSync(zipPath)) {
+          fs.unlinkSync(zipPath);
+          logger.info("Deleted zip file: " + zipPath);
+        }
+      });
+    }
+  } catch (error) {
+    logError(error);
+    throw error;
+  }
 }
 
 /**
@@ -353,7 +361,7 @@ async function convertWebp(dir) {
         });
       Promise.all(promiseAll)
         .then(() => resolve())
-        .catch(() => reject());
+        .catch((error) => reject(error));
     } catch (error) {
       reject(error);
     }
@@ -388,6 +396,6 @@ async function extractZipIfNeeded(dir) {
   // 展開ディレクトリを作成
   const extractDir = path.join(path.dirname(dir), path.basename(dir, ".zip"));
   zip.extractAllTo(extractDir, true);
-  logger.info("Extracted zip to:", extractDir);
+  logger.info(`Extracted zip to: ${extractDir}`);
   return { dir: extractDir, zipPath: dir };
 }
