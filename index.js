@@ -174,28 +174,30 @@ if (options.lists) {
     overallTotalPages = counts.reduce((sum, count) => sum + count, 0);
     logger.info(`Overall total pages: ${overallTotalPages}`);
 
-    rlList.forEach(async (dirStr) => {
-      try {
-        const result = await extractZipIfNeeded(dirStr);
-        if (result) {
-          const { dir: processedDir, zipPath } = result;
-          await convertWebp(processedDir);
-          logger.debug("close main start");
-          await main(
-            processedDir,
-            options.ext,
-            options.output,
-            zipPath,
-            (pageNumber, pageTotal) => {
-              overallCompletedPages += 1;
-              renderOverallProgress(overallCompletedPages, overallTotalPages);
-            },
-          );
+    (async () => {
+      for (const dirStr of rlList) {
+        try {
+          const result = await extractZipIfNeeded(dirStr);
+          if (result) {
+            const { dir: processedDir, zipPath } = result;
+            await convertWebp(processedDir);
+            logger.debug("close main start");
+            await main(
+              processedDir,
+              options.ext,
+              options.output,
+              zipPath,
+              (pageNumber, pageTotal) => {
+                overallCompletedPages += 1;
+                renderOverallProgress(overallCompletedPages, overallTotalPages);
+              },
+            );
+          }
+        } catch (error) {
+          logError(error);
         }
-      } catch (error) {
-        logError(error);
       }
-    });
+    })();
   });
 } else {
   if (!options.dir || !isValidInput(options.dir)) {
